@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小搜一下</title>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+            box-sizing: border-box;
+        }
+        .rela {
+            position: relative;
+        }
+        .search-box {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .search-input {
+            width: 300px;
+            height: 30px;
+            line-height: 30px;
+            border-radius: 5px;
+            padding: 0 5px;
+            outline: none;
+        }
+        .search-btn {
+            height: 30px;
+            line-height: 30px;
+            padding: 0 5px;
+        }
+        .content-box {
+            width: 800px;
+            padding: 10px 20px;
+        }
+        ul {
+            list-style: none;
+        }
+        .content-item .title {
+            font-size: 18px;
+            font-weight: bold;
+            display: block;
+            width: 760px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .content-item .desc {
+            color: #888;
+            font-size: 14px;
+        }
+        .page-outer {
+            width: 760px;
+            overflow: auto;
+        }
+        .page-container {
+            display: inline-block;
+            white-space: nowrap;
+        }
+        .page-item {
+            display: inline-block;
+            margin: 3px 5px;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .page-item:hover {
+            color: rgb(0, 153, 255);
+        }
+        .page-item.selected {
+            cursor: initial;
+            text-decoration: none;
+        }
+        .page-item.selected:hover {
+            color: black;
+        }
+        .ndisp {
+            display: none;
+        }
+        .division-line {
+            margin: 15px 10px;
+            box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="search-box">
+        <input id="input" class="search-input"/>
+        <button class="search-btn">小搜一下</button>
+        <div id="tip" class="tip" style="display: none;">This is a tip.</div>
+    </div>
+    <div class="division-line ndisp"></div>
+    <div class="content-box ndisp">
+        <ul class="content-container">
+        </ul>
+        <div class="content-footer ndisp">
+            <span>
+                <select id="rows-selector" class="rows-selector">
+                    <option value="请选择" disabled>每页显示几条</option>
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="30">30</option>
+                </select>
+            </span>
+            <span>
+                <div class="page-outer">
+                    <ul class="page-container"></ul>
+                </div>
+            </span>
+        </div>
+    </div>
+    <script>
+        function Search() {
+            this.inputDom = document.getElementById('input');
+            this.searchBtn = document.getElementsByClassName('search-btn')[0];
+            var r_a_p = new RowsAPage(this);
+            this.rows = r_a_p.rows;
+            this.page = 1;
+            this._init();
+        }
+
+        Search.prototype = {
+            constructor: Search,
+            _init: function() {
+                this.addEv();
+            },
+            addEv: function() {
+                this.inputDom.onkeyup = this.listenOnEnter.bind(this);
+                this.searchBtn.onclick = this.searchWithTip.bind(this);
+            },
+            listenOnEnter: function (ev) {
+                var e = ev || window.event;
+                if (e.keyCode === 13) {
+                    this.searchWithTip();
+                }
+            },
+            searchWithTip: function() {
+                var inputStr = this.getInputStr();
+                if (!inputStr) return this.showTip('搜索条件不能为空！');
+                this.page = 1;
+                this.search();
+            },
+            showTip: function (msg) {
+                var tipDom = document.getElementById('tip');
+                tipDom.innerHTML = msg;
+                tipDom.style.display = 'block';
+            },
+            search: function () {
+                var req = new XMLHttpRequest();
+                var baseUrl = location.protocol + '//' + location.host + '/' + 'web';
+                var query = 'keywords=' + this.getInputStr() + '&page=' + this.page + '&rows=' + this.rows;
+                var url = baseUrl + '?' + query;
+                console.log(req);
+                req.open('GET', url, true);
+                req.send();
+                req.onload = () => {
+                    var res = JSON.parse(req.responseText);
+                    console.log(res);
+                    this.showContent(res.data);
+                    this.setPageNav(res.total);
+                }
+            },
+            setPageNav: function(total) {
+                var itmList = [];
+                var con = document.getElementsByClassName('page-container')[0];
+                con.innerHTML = '';
+                if (!total) {
+                    return;
+                }
+                var pageNum = Math.ceil(total / this.rows);
+                for (var i = 1; i <= pageNum; i++) {
+                    var itm = crePageLi.call(this, i);
+                    con.appendChild(itm);
+                    itmList.push(itm);
+                }
+
+                function crePageLi(num) {
+                    var itm = document.createElement('li');
+                    itm.className = 'page-item';
+                    if (num === this.page) this.addClass(itm, 'selected');
+                    itm.innerHTML = num;
+                    itm.onclick = () => {
+                        if (this.hasClass(itm, 'selected')) return;
+                        itmList.forEach(m => {
+                            this.removeClass(m, 'selected');
+                        });
+                        this.addClass(itm, 'selected');
+                        this.page = num;
+                        this.search();
+                    }
+                    return itm;
+                }
+            },
+            showContent: function (ct) {
+                var con = document.getElementsByClassName('content-container')[0];
+                con.innerHTML = '';
+                this.removeClass(document.getElementsByClassName('content-box')[0], 'ndisp');
+                this.removeClass(document.getElementsByClassName('division-line')[0], 'ndisp');
+                if (!ct.length) {
+                    con.innerHTML = '<h1>未找到‘' + (this.searchKeyWords || '') + '’相关的结果！</h1>';
+                    this.addClass(document.getElementsByClassName('content-footer')[0], 'ndisp');
+                    return;
+                }
+                this.removeClass(document.getElementsByClassName('content-footer')[0], 'ndisp');
+                for (var i = 0; i < ct.length; i++) {
+                    var liItem = document.createElement('li');
+                    liItem.className = 'content-item';
+                    var html = '', curd = ct[i];
+
+                    [
+                        '<a href="{ip}" class="title" target="_blank">{title}</a>',
+                        '<p class="desc">{keywords}</p>'
+                    ].forEach(itm => {
+                        var keys = getKeys(itm);
+                        var nitm = itm;
+                        keys.forEach(key => {
+                            nitm = nitm.replace(key, curd[key.substring(1, key.length - 1)]);
+                        });
+                        nitm = nitm.replace(new RegExp(this.searchKeyWords, 'ig'), '<span style="color: red;">' + this.searchKeyWords + '</span>');
+                        html += nitm;
+                    })
+
+                    liItem.innerHTML = html;
+                    con.appendChild(liItem);
+                }
+
+                function getKeys(str) {
+                    return str.match(/\{\w+?\}/g)
+                }
+            },
+            getInputStr: function () {
+                var val = this.inputDom.value;
+                console.log('searchKeyWords:', val);
+                this.searchKeyWords = val;
+                return val;
+            },
+            hasClass: function(dom, cls) {
+                var curcls = dom.className;
+                return curcls.indexOf(cls) > -1;
+            },
+            addClass: function (dom, cls) {
+                var curcls = dom && dom.className;
+                dom.className = curcls + ' ' + cls;
+                return curcls + ' ' + cls;
+            },
+            removeClass: function (dom, cls) {
+                var curcls = dom && dom.className;
+                ncls = curcls.split(' ').filter(cn => cn != cls).join(' ');
+                dom.className = ncls;
+                return ncls;
+            },
+            setRows: function(rows) {
+                this.rows = rows;
+            }
+        }
+
+        function RowsAPage(searchIns) {
+            this.rowSDom = document.getElementById('rows-selector');
+            this.rows = this.getRowsVal();
+            this.searchIns = searchIns;
+            this._init_event();
+        }
+
+        RowsAPage.prototype = {
+            constructor: RowsAPage,
+            _init_event: function() {
+                this.addRowsEv();
+            },
+            addRowsEv: function() {
+                this.rowSDom.onchange = () => {
+                    var rows = this.getRowsVal();
+                    console.log('rows changed:', rows);
+                    this.searchIns.page = 1;
+                    this.searchIns.setRows(rows);
+                    this.searchIns.searchWithTip();
+                }
+            },
+            getRowsVal: function() {
+                return parseInt(this.rowSDom.value);
+            }
+        }
+    </script>
+    <script>
+        var S = new Search();
+    </script>
+</body>
+</html>
